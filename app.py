@@ -9,6 +9,7 @@ app = Flask(__name__)
 # 🔵 GitHub RAW Excel URL
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/RajuSakshena/jobs-scraping-pipeline/main/output/Combined.xlsx"
 
+cached_df = None
 
 @app.route("/")
 def home():
@@ -37,16 +38,18 @@ def download_excel():
 @app.route("/jobs")
 def jobs_dashboard():
     try:
-        response = requests.get(GITHUB_RAW_URL)
+        global cached_df
+        if cached_df is None:
+            response = requests.get(GITHUB_RAW_URL)
 
-        if response.status_code != 200:
-            return "Could not fetch file from GitHub", 404
+            if response.status_code != 200:
+                return "Could not fetch file from GitHub", 404
 
-        # Read Excel
-        df = pd.read_excel(io.BytesIO(response.content))
+            cached_df = pd.read_excel(io.BytesIO(response.content))
+            cached_df = cached_df.fillna("")
 
         # Clean display
-        df = df.fillna("")
+        df = cached_df
 
         # Convert to HTML table
         table_html = df.to_html(index=False)
