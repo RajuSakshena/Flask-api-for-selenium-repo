@@ -2,12 +2,12 @@ from flask import Flask, render_template_string, send_file
 import requests
 import pandas as pd
 import io
-import os
 
 app = Flask(__name__)
 
 # 🔵 GitHub RAW Excel URL
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/RajuSakshena/jobs-scraping-pipeline/main/output/Combined.xlsx"
+
 
 @app.route("/")
 def home():
@@ -44,11 +44,7 @@ def jobs_dashboard():
         df = pd.read_excel(io.BytesIO(response.content))
         df = df.fillna("")
 
-        # Clean display
-        df = df
-
-        # Convert to HTML table
-        table_html = df.to_html(index=False)
+        table_html = df.to_html(index=False, escape=False)
 
         html = f"""
         <html>
@@ -60,9 +56,7 @@ def jobs_dashboard():
                     padding: 20px;
                     background-color: #f4f6f9;
                 }}
-                h2 {{
-                    margin-bottom: 15px;
-                }}
+
                 .download-btn {{
                     background: #58a648;
                     color: white;
@@ -71,9 +65,11 @@ def jobs_dashboard():
                     text-decoration: none;
                     font-weight: bold;
                 }}
+
                 .download-btn:hover {{
                     background: #0b3c5d;
                 }}
+
                 table {{
                     width: 100%;
                     border-collapse: collapse;
@@ -81,22 +77,44 @@ def jobs_dashboard():
                     font-size: 14px;
                     background: white;
                 }}
+
                 th {{
                     background: #0b3c5d;
                     color: white;
                     padding: 8px;
                     text-align: left;
                 }}
+
                 td {{
                     padding: 6px;
                     border-bottom: 1px solid #ddd;
+                    vertical-align: top;
                 }}
+
                 tr:hover {{
                     background: #f2f2f2;
                 }}
+
+                /* 4 line clamp */
+                .clamp-4 {{
+                    display: -webkit-box;
+                    -webkit-line-clamp: 4;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                }}
+
+                .more-btn {{
+                    display: inline-block;
+                    margin-top: 5px;
+                    color: #58a648;
+                    cursor: pointer;
+                    font-weight: bold;
+                }}
+
             </style>
         </head>
         <body>
+
             <h2>Latest Job Listings</h2>
 
             <a class="download-btn" href="/download">
@@ -104,6 +122,48 @@ def jobs_dashboard():
             </a>
 
             {table_html}
+
+            <script>
+                // Find Description column index
+                let headers = document.querySelectorAll("th");
+                let descIndex = -1;
+
+                headers.forEach((th, index) => {{
+                    if (th.innerText.trim().toLowerCase() === "description") {{
+                        descIndex = index;
+                    }}
+                }});
+
+                if (descIndex !== -1) {{
+                    document.querySelectorAll("table tbody tr").forEach(row => {{
+                        let cell = row.children[descIndex];
+
+                        if (cell.innerText.length > 150) {{
+                            let fullText = cell.innerHTML;
+
+                            cell.innerHTML = `
+                                <div class="clamp-4">${{fullText}}</div>
+                                <span class="more-btn">More</span>
+                            `;
+                        }}
+                    }});
+                }}
+
+                document.addEventListener("click", function(e) {{
+                    if (e.target.classList.contains("more-btn")) {{
+                        let textDiv = e.target.previousElementSibling;
+
+                        if (textDiv.classList.contains("clamp-4")) {{
+                            textDiv.classList.remove("clamp-4");
+                            e.target.innerText = "Less";
+                        }} else {{
+                            textDiv.classList.add("clamp-4");
+                            e.target.innerText = "More";
+                        }}
+                    }}
+                }});
+            </script>
+
         </body>
         </html>
         """
@@ -115,5 +175,4 @@ def jobs_dashboard():
 
 
 if __name__ == "__main__":
-    # For local development only
-    app.run()
+    app.run(debug=True)
