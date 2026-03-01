@@ -44,6 +44,15 @@ def jobs_dashboard():
         df = pd.read_excel(io.BytesIO(response.content))
         df = df.fillna("")
 
+        # ✅ Apply clamp only on Description column
+        if "Description" in df.columns:
+            df["Description"] = df["Description"].apply(
+                lambda x: f"""
+                <div class="clamp-4">{x}</div>
+                <span class="more-btn">More</span>
+                """ if len(str(x)) > 200 else x
+            )
+
         table_html = df.to_html(index=False, escape=False)
 
         html = f"""
@@ -55,6 +64,10 @@ def jobs_dashboard():
                     font-family: Arial;
                     padding: 20px;
                     background-color: #f4f6f9;
+                }}
+
+                h2 {{
+                    margin-bottom: 15px;
                 }}
 
                 .download-btn {{
@@ -124,31 +137,6 @@ def jobs_dashboard():
             {table_html}
 
             <script>
-                // Find Description column index
-                let headers = document.querySelectorAll("th");
-                let descIndex = -1;
-
-                headers.forEach((th, index) => {{
-                    if (th.innerText.trim().toLowerCase() === "description") {{
-                        descIndex = index;
-                    }}
-                }});
-
-                if (descIndex !== -1) {{
-                    document.querySelectorAll("table tbody tr").forEach(row => {{
-                        let cell = row.children[descIndex];
-
-                        if (cell.innerText.length > 150) {{
-                            let fullText = cell.innerHTML;
-
-                            cell.innerHTML = `
-                                <div class="clamp-4">${{fullText}}</div>
-                                <span class="more-btn">More</span>
-                            `;
-                        }}
-                    }});
-                }}
-
                 document.addEventListener("click", function(e) {{
                     if (e.target.classList.contains("more-btn")) {{
                         let textDiv = e.target.previousElementSibling;
