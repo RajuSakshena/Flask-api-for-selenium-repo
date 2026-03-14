@@ -3,11 +3,12 @@ from flask_cors import CORS
 import requests
 import pandas as pd
 import io
+import time
 
 app = Flask(__name__)
 CORS(app)
 
-# 🔵 GitHub RAW Excel URL
+# GitHub RAW Excel URL
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/RajuSakshena/jobs-scraping-pipeline/main/output/Combined.xlsx"
 
 
@@ -17,12 +18,38 @@ def home():
 
 
 # =========================
+# FETCH LATEST EXCEL FROM GITHUB
+# =========================
+def fetch_latest_excel():
+
+    try:
+        # cache busting parameter
+        url = f"{GITHUB_RAW_URL}?t={int(time.time())}"
+
+        response = requests.get(url, timeout=30)
+
+        if response.status_code != 200:
+            raise Exception("Could not fetch Excel from GitHub")
+
+        df = pd.read_excel(io.BytesIO(response.content))
+        df = df.fillna("")
+
+        return df
+
+    except Exception as e:
+        raise Exception(f"Excel Fetch Error: {str(e)}")
+
+
+# =========================
 # DOWNLOAD EXCEL
 # =========================
 @app.route("/download")
 def download_excel():
     try:
-        response = requests.get(GITHUB_RAW_URL)
+
+        url = f"{GITHUB_RAW_URL}?t={int(time.time())}"
+
+        response = requests.get(url, timeout=30)
 
         if response.status_code != 200:
             return "Could not fetch file from GitHub", 404
@@ -43,40 +70,32 @@ def download_excel():
 # =========================
 @app.route("/jobs-json")
 def jobs_json():
+
     try:
-        response = requests.get(GITHUB_RAW_URL)
 
-        if response.status_code != 200:
-            return jsonify({"error": "Could not fetch file from GitHub"}), 404
+        df = fetch_latest_excel()
 
-        df = pd.read_excel(io.BytesIO(response.content))
-        df = df.fillna("")
-
-        # convert dataframe to list of dictionaries
         jobs = df.to_dict(orient="records")
 
         return jsonify(jobs)
 
     except Exception as e:
+
         return jsonify({"error": str(e)}), 500
 
 
 # =========================
-# HTML DASHBOARD (TABLE VIEW)
+# HTML DASHBOARD
 # =========================
 @app.route("/jobs")
 def jobs_dashboard():
+
     try:
-        response = requests.get(GITHUB_RAW_URL)
 
-        if response.status_code != 200:
-            return "Could not fetch file from GitHub", 404
+        df = fetch_latest_excel()
 
-        df = pd.read_excel(io.BytesIO(response.content))
-        df = df.fillna("")
-
-        # clamp description column
         if "Description" in df.columns:
+
             df["Description"] = df["Description"].apply(
                 lambda x: f"""
                 <div class="clamp-4">{x}</div>
@@ -89,102 +108,113 @@ def jobs_dashboard():
         html = f"""
         <html>
         <head>
-            <title>Jobs Dashboard</title>
 
-            <style>
-                body {{
-                    font-family: Arial;
-                    padding: 20px;
-                    background-color: #f4f6f9;
-                }}
+        <title>Jobs Dashboard</title>
 
-                h2 {{
-                    margin-bottom: 15px;
-                }}
+        <style>
 
-                .download-btn {{
-                    background: #58a648;
-                    color: white;
-                    padding: 10px 18px;
-                    border-radius: 6px;
-                    text-decoration: none;
-                    font-weight: bold;
-                }}
+        body {{
+        font-family: Arial;
+        padding: 20px;
+        background-color: #f4f6f9;
+        }}
 
-                .download-btn:hover {{
-                    background: #0b3c5d;
-                }}
+        h2 {{
+        margin-bottom: 15px;
+        }}
 
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 20px;
-                    font-size: 14px;
-                    background: white;
-                }}
+        .download-btn {{
+        background: #58a648;
+        color: white;
+        padding: 10px 18px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: bold;
+        }}
 
-                th {{
-                    background: #0b3c5d;
-                    color: white;
-                    padding: 8px;
-                    text-align: left;
-                }}
+        .download-btn:hover {{
+        background: #0b3c5d;
+        }}
 
-                td {{
-                    padding: 6px;
-                    border-bottom: 1px solid #ddd;
-                    vertical-align: top;
-                }}
+        table {{
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        font-size: 14px;
+        background: white;
+        }}
 
-                tr:hover {{
-                    background: #f2f2f2;
-                }}
+        th {{
+        background: #0b3c5d;
+        color: white;
+        padding: 8px;
+        text-align: left;
+        }}
 
-                .clamp-4 {{
-                    display: -webkit-box;
-                    -webkit-line-clamp: 4;
-                    -webkit-box-orient: vertical;
-                    overflow: hidden;
-                }}
+        td {{
+        padding: 6px;
+        border-bottom: 1px solid #ddd;
+        vertical-align: top;
+        }}
 
-                .more-btn {{
-                    display: inline-block;
-                    margin-top: 5px;
-                    color: #58a648;
-                    cursor: pointer;
-                    font-weight: bold;
-                }}
-            </style>
+        tr:hover {{
+        background: #f2f2f2;
+        }}
+
+        .clamp-4 {{
+        display: -webkit-box;
+        -webkit-line-clamp: 4;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        }}
+
+        .more-btn {{
+        display: inline-block;
+        margin-top: 5px;
+        color: #58a648;
+        cursor: pointer;
+        font-weight: bold;
+        }}
+
+        </style>
 
         </head>
 
         <body>
 
-            <h2>Latest Job Listings</h2>
+        <h2>Latest Job Listings</h2>
 
-            <a class="download-btn" href="/download">
-                Download Full Excel File
-            </a>
+        <a class="download-btn" href="/download">
+        Download Full Excel File
+        </a>
 
-            {table_html}
+        {table_html}
 
-            <script>
-                document.addEventListener("click", function(e) {{
-                    if (e.target.classList.contains("more-btn")) {{
+        <script>
 
-                        let textDiv = e.target.previousElementSibling;
+        document.addEventListener("click", function(e) {{
 
-                        if (textDiv.classList.contains("clamp-4")) {{
-                            textDiv.classList.remove("clamp-4");
-                            e.target.innerText = "Less";
-                        }} else {{
-                            textDiv.classList.add("clamp-4");
-                            e.target.innerText = "More";
-                        }}
+        if (e.target.classList.contains("more-btn")) {{
 
-                    }}
-                }});
-            </script>
+        let textDiv = e.target.previousElementSibling;
+
+        if (textDiv.classList.contains("clamp-4")) {{
+
+        textDiv.classList.remove("clamp-4");
+        e.target.innerText = "Less";
+
+        }} else {{
+
+        textDiv.classList.add("clamp-4");
+        e.target.innerText = "More";
+
+        }}
+
+        }}
+
+        }});
+
+        </script>
 
         </body>
         </html>
@@ -193,6 +223,7 @@ def jobs_dashboard():
         return render_template_string(html)
 
     except Exception as e:
+
         return f"Dashboard Error: {str(e)}", 500
 
 
