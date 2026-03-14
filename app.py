@@ -1,9 +1,11 @@
-from flask import Flask, render_template_string, send_file
+from flask import Flask, render_template_string, send_file, jsonify
+from flask_cors import CORS
 import requests
 import pandas as pd
 import io
 
 app = Flask(__name__)
+CORS(app)
 
 # 🔵 GitHub RAW Excel URL
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/RajuSakshena/jobs-scraping-pipeline/main/output/Combined.xlsx"
@@ -14,6 +16,9 @@ def home():
     return "Flask App Running"
 
 
+# =========================
+# DOWNLOAD EXCEL
+# =========================
 @app.route("/download")
 def download_excel():
     try:
@@ -33,6 +38,32 @@ def download_excel():
         return f"Download Error: {str(e)}", 500
 
 
+# =========================
+# JSON API FOR FRONTEND
+# =========================
+@app.route("/jobs-json")
+def jobs_json():
+    try:
+        response = requests.get(GITHUB_RAW_URL)
+
+        if response.status_code != 200:
+            return jsonify({"error": "Could not fetch file from GitHub"}), 404
+
+        df = pd.read_excel(io.BytesIO(response.content))
+        df = df.fillna("")
+
+        # convert dataframe to list of dictionaries
+        jobs = df.to_dict(orient="records")
+
+        return jsonify(jobs)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =========================
+# HTML DASHBOARD (TABLE VIEW)
+# =========================
 @app.route("/jobs")
 def jobs_dashboard():
     try:
@@ -44,7 +75,7 @@ def jobs_dashboard():
         df = pd.read_excel(io.BytesIO(response.content))
         df = df.fillna("")
 
-        # ✅ Apply clamp only on Description column
+        # clamp description column
         if "Description" in df.columns:
             df["Description"] = df["Description"].apply(
                 lambda x: f"""
@@ -59,6 +90,7 @@ def jobs_dashboard():
         <html>
         <head>
             <title>Jobs Dashboard</title>
+
             <style>
                 body {{
                     font-family: Arial;
@@ -108,7 +140,6 @@ def jobs_dashboard():
                     background: #f2f2f2;
                 }}
 
-                /* 4 line clamp */
                 .clamp-4 {{
                     display: -webkit-box;
                     -webkit-line-clamp: 4;
@@ -123,9 +154,10 @@ def jobs_dashboard():
                     cursor: pointer;
                     font-weight: bold;
                 }}
-
             </style>
+
         </head>
+
         <body>
 
             <h2>Latest Job Listings</h2>
@@ -139,6 +171,7 @@ def jobs_dashboard():
             <script>
                 document.addEventListener("click", function(e) {{
                     if (e.target.classList.contains("more-btn")) {{
+
                         let textDiv = e.target.previousElementSibling;
 
                         if (textDiv.classList.contains("clamp-4")) {{
@@ -148,6 +181,7 @@ def jobs_dashboard():
                             textDiv.classList.add("clamp-4");
                             e.target.innerText = "More";
                         }}
+
                     }}
                 }});
             </script>
